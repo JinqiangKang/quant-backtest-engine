@@ -8,6 +8,7 @@
 #include "MatchingEngine.h"
 #include "Order.h"
 #include "Position.h"
+#include "IdealMatchingEngine.h"
 #include "RealisticMatchingEngine.h"
 #include "SlippageModel.h"
 #include "VolumeProportionalSlippageModel.h"
@@ -97,6 +98,11 @@ PYBIND11_MODULE(_backtest_core, m) {
                                                               "RealisticMatchingEngine")
         .def(py::init<std::shared_ptr<sim::LatencyModel>,
                       std::shared_ptr<sim::SlippageModel>>());
+
+    py::class_<sim::IdealMatchingEngine, sim::MatchingEngine,
+               std::shared_ptr<sim::IdealMatchingEngine>>(m, "IdealMatchingEngine")
+        .def(py::init<>())
+        .def("process", &sim::IdealMatchingEngine::process);
 
     py::class_<backtest::CoreEngine>(m, "CoreEngine")
         .def(py::init<>())

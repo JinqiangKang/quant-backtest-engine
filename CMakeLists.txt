@@ -60,6 +60,7 @@ set(CORE_ENGINE_SOURCES
     src/engine/FixedSlippageModel.cpp
     src/engine/VolumeProportionalSlippageModel.cpp
     src/engine/RealisticMatchingEngine.cpp
+    src/engine/IdealMatchingEngine.cpp
 )
 
 set(PROJECT_INCLUDE_DIRS
