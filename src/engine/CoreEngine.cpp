@@ -2,14 +2,17 @@
 
 #include "DataLoader.h"
 #include "EventScheduler.h"
+#include "IdealMatchingEngine.h"
 #include "OrderManager.h"
 #include "PortfolioManager.h"
 
 #include <chrono>
 #include <ctime>
+#include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 #include <utility>
 
 namespace backtest {
@@ -30,19 +33,27 @@ std::string current_timestamp() {
     return oss.str();
 }
 
+std::string csv_quote(const std::string& value) { return "\"" + value + "\""; }
+
+std::string side_to_string(OrderSide side) {
+    return side == OrderSide::BUY ? "BUY" : "SELL";
+}
+
 }  // namespace
 
 CoreEngine::CoreEngine(std::unique_ptr<simulation::MatchingEngine> matcher)
     : scheduler_(std::make_unique<EventScheduler>())
     , order_mgr_(std::make_unique<OrderManager>())
     , portfolio_(std::make_unique<PortfolioManager>())
-    , matcher_(std::move(matcher)) {}
+    , matcher_(std::move(matcher))
+    , initial_cash_(portfolio_->get_cash()) {}
 
 CoreEngine::CoreEngine(std::shared_ptr<simulation::MatchingEngine> matcher)
     : scheduler_(std::make_unique<EventScheduler>())
     , order_mgr_(std::make_unique<OrderManager>())
     , portfolio_(std::make_unique<PortfolioManager>())
-    , matcher_(std::move(matcher)) {}
+    , matcher_(std::move(matcher))
+    , initial_cash_(portfolio_->get_cash()) {}
 
 CoreEngine::~CoreEngine() {
     if (log_file_.is_open()) {
@@ -50,14 +61,60 @@ CoreEngine::~CoreEngine() {
     }
 }
 
+void CoreEngine::reset() {
+    portfolio_->reset();
+    order_mgr_->clear();
+    fills_.clear();
+    equity_curve_.clear();
+    current_bar_ = Bar{};
+    active_matcher_ = nullptr;
+    scheduler_->reset();
+}
+
 void CoreEngine::run(const std::string& symbol, const std::string& start_date,
                      const std::string& end_date, const std::string& csv_path) {
+    has_dual_results_ = false;
+    run_internal(symbol, start_date, end_date, csv_path, matcher_.get());
+    realistic_fills_ = fills_;
+    realistic_equity_curve_ = equity_curve_;
+    realistic_metrics_ = analytics::PerformanceAnalytics::compute_metrics(
+        realistic_fills_, realistic_equity_curve_, initial_cash_);
+}
+
+void CoreEngine::run_dual(const std::string& symbol, const std::string& start_date,
+                          const std::string& end_date, const std::string& csv_path) {
+    has_dual_results_ = true;
+
+    simulation::IdealMatchingEngine ideal_engine;
+    run_internal(symbol, start_date, end_date, csv_path, &ideal_engine, "Ideal Backtest Run");
+    ideal_fills_ = fills_;
+    ideal_equity_curve_ = equity_curve_;
+    ideal_metrics_ = analytics::PerformanceAnalytics::compute_metrics(
+        ideal_fills_, ideal_equity_curve_, initial_cash_);
+
+    run_internal(symbol, start_date, end_date, csv_path, matcher_.get(),
+                 "Realistic Backtest Run");
+    realistic_fills_ = fills_;
+    realistic_equity_curve_ = equity_curve_;
+    realistic_metrics_ = analytics::PerformanceAnalytics::compute_metrics(
+        realistic_fills_, realistic_equity_curve_, initial_cash_);
+
+    gap_metrics_ = analytics::PerformanceAnalytics::compute_gap(ideal_metrics_,
+                                                                realistic_metrics_);
+}
+
+void CoreEngine::run_internal(const std::string& symbol, const std::string& start_date,
+                              const std::string& end_date, const std::string& csv_path,
+                              simulation::MatchingEngine* engine_override,
+                              const std::string& run_label) {
+    reset();
+
     run_params_.clear();
     run_params_["symbol"] = symbol;
     run_params_["start_date"] = start_date;
     run_params_["end_date"] = end_date;
     run_params_["csv_path"] = csv_path;
-    run_params_["initial_cash"] = std::to_string(portfolio_->get_cash());
+    run_params_["initial_cash"] = std::to_string(initial_cash_);
 
     if (log_file_.is_open()) {
         log_file_.close();
@@ -70,7 +127,7 @@ void CoreEngine::run(const std::string& symbol, const std::string& start_date,
                   << "] Warning: failed to open run.log, logging to stdout\n";
     }
 
-    log("=== Backtest Run ===");
+    log("=== " + run_label + " ===");
     log("timestamp=" + current_timestamp());
     log("symbol=" + symbol);
     log("start_date=" + start_date);
@@ -93,9 +150,7 @@ void CoreEngine::run(const std::string& symbol, const std::string& start_date,
         std::to_string(filtered_bars.size()) + " bars");
 
     scheduler_->load_bars(filtered_bars);
-    order_mgr_->clear();
-    fills_.clear();
-    current_bar_ = Bar{};
+    active_matcher_ = engine_override;
 
     while (scheduler_->has_next()) {
         current_bar_ = scheduler_->next();
@@ -104,6 +159,10 @@ void CoreEngine::run(const std::string& symbol, const std::string& start_date,
         if (strategy_ && !strategy_.is_none()) {
             strategy_.attr("on_bar")(current_bar_);
         }
+
+        equity_curve_.push_back(
+            analytics::EquityPoint{current_bar_.datetime,
+                                   portfolio_->get_nav(current_bar_.close)});
     }
 
     log("=== Run Complete ===");
@@ -111,6 +170,8 @@ void CoreEngine::run(const std::string& symbol, const std::string& start_date,
     if (log_file_.is_open()) {
         log_file_.close();
     }
+
+    active_matcher_ = nullptr;
 }
 
 bool CoreEngine::submit_order(const Order& order) {
@@ -130,13 +191,18 @@ bool CoreEngine::submit_order(const Order& order) {
         return false;
     }
 
-    if (matcher_ && !current_bar_.datetime.empty()) {
+    simulation::MatchingEngine* matcher = active_matcher_;
+    if (matcher == nullptr) {
+        matcher = matcher_.get();
+    }
+
+    if (matcher != nullptr && !current_bar_.datetime.empty()) {
         Order match_order = order;
         if (match_order.status != OrderStatus::PENDING) {
             match_order.status = OrderStatus::PENDING;
         }
 
-        const Fill fill = matcher_->process(match_order, current_bar_);
+        const Fill fill = matcher->process(match_order, current_bar_);
         if (fill.quantity > 0.0) {
             fills_.push_back(fill);
             portfolio_->update(fill);
@@ -160,6 +226,61 @@ bool CoreEngine::submit_order(const Order& order) {
     return true;
 }
 
+void CoreEngine::export_results(const std::string& path) {
+    std::filesystem::create_directories(path);
+
+    const std::filesystem::path trades_path = std::filesystem::path(path) / "trades.csv";
+    std::ofstream trades_file(trades_path);
+    if (!trades_file.is_open()) {
+        throw std::runtime_error("Failed to open trades export file: " +
+                                 trades_path.string());
+    }
+
+    trades_file << "fill_id,order_id,symbol,side,quantity,price,timestamp\n";
+    for (const Fill& fill : fills_) {
+        trades_file << csv_quote(fill.fill_id) << ','
+                    << csv_quote(fill.order_id) << ','
+                    << csv_quote(fill.symbol) << ','
+                    << csv_quote(side_to_string(fill.side)) << ','
+                    << fill.quantity << ',' << fill.price << ','
+                    << csv_quote(fill.timestamp) << '\n';
+    }
+    trades_file.close();
+
+    const analytics::PerformanceMetrics& metrics =
+        has_dual_results_ ? realistic_metrics_
+                          : analytics::PerformanceAnalytics::compute_metrics(
+                                fills_, equity_curve_, initial_cash_);
+
+    const std::filesystem::path metrics_path = std::filesystem::path(path) / "metrics.csv";
+    std::ofstream metrics_file(metrics_path);
+    if (!metrics_file.is_open()) {
+        throw std::runtime_error("Failed to open metrics export file: " +
+                                 metrics_path.string());
+    }
+
+    metrics_file << "total_return,sharpe_ratio,max_drawdown,win_rate\n";
+    metrics_file << metrics.total_return << ',' << metrics.sharpe_ratio << ','
+                 << metrics.max_drawdown << ',' << metrics.win_rate << '\n';
+    metrics_file.close();
+
+    if (has_dual_results_) {
+        const std::filesystem::path gap_path =
+            std::filesystem::path(path) / "gap_metrics.csv";
+        std::ofstream gap_file(gap_path);
+        if (!gap_file.is_open()) {
+            throw std::runtime_error("Failed to open gap metrics export file: " +
+                                     gap_path.string());
+        }
+
+        gap_file << "total_return_diff,sharpe_reduction,relative_decay\n";
+        gap_file << gap_metrics_.total_return_diff << ','
+                 << gap_metrics_.sharpe_reduction << ','
+                 << gap_metrics_.relative_decay << '\n';
+        gap_file.close();
+    }
+}
+
 void CoreEngine::set_matching_engine(std::unique_ptr<simulation::MatchingEngine> matcher) {
     matcher_ = std::move(matcher);
 }
@@ -179,6 +300,10 @@ Position CoreEngine::get_position(const std::string& symbol) const {
 }
 
 const std::vector<Fill>& CoreEngine::get_fills() const noexcept { return fills_; }
+
+const std::vector<analytics::EquityPoint>& CoreEngine::get_equity_curve() const noexcept {
+    return equity_curve_;
+}
 
 void CoreEngine::log(const std::string& msg) {
     const std::string line = "[" + current_timestamp() + "] " + msg;

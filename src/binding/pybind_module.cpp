@@ -110,6 +110,9 @@ PYBIND11_MODULE(_backtest_core, m) {
         .def(py::init<>())
         .def(py::init<std::shared_ptr<sim::MatchingEngine>>())
         .def("run", &backtest::CoreEngine::run)
+        .def("run_dual", &backtest::CoreEngine::run_dual)
+        .def("reset", &backtest::CoreEngine::reset)
+        .def("export_results", &backtest::CoreEngine::export_results)
         .def("submit_order", &backtest::CoreEngine::submit_order)
         .def("set_strategy", &backtest::CoreEngine::set_strategy)
         .def("set_matching_engine",
@@ -118,7 +121,8 @@ PYBIND11_MODULE(_backtest_core, m) {
                  &backtest::CoreEngine::set_matching_engine))
         .def("get_cash", &backtest::CoreEngine::get_cash)
         .def("get_position", &backtest::CoreEngine::get_position)
-        .def("get_fills", &backtest::CoreEngine::get_fills);
+        .def("get_fills", &backtest::CoreEngine::get_fills)
+        .def("get_equity_curve", &backtest::CoreEngine::get_equity_curve);
 
     py::class_<analytics::EquityPoint>(m, "EquityPoint")
         .def_readonly("datetime", &analytics::EquityPoint::datetime)

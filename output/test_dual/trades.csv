@@ -1,0 +1,2 @@
+fill_id,order_id,symbol,side,quantity,price,timestamp
+"FILL-","","TEST","BUY",100,99.7965,"2023-01-01+0ms"
