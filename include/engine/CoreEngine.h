@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "Bar.h"
 #include "Fill.h"
 #include "MatchingEngine.h"
 #include "Order.h"
@@ -34,6 +35,7 @@ public:
 
     bool submit_order(const Order& order);
     void set_strategy(pybind11::object strategy);
+    void set_matching_engine(std::unique_ptr<simulation::MatchingEngine> matcher);
 
     [[nodiscard]] double get_cash() const;
     [[nodiscard]] Position get_position(const std::string& symbol) const;
@@ -49,6 +51,7 @@ private:
     std::ofstream log_file_;
     bool log_to_file_{true};
     pybind11::object strategy_{};
+    Bar current_bar_{};
 
     void log(const std::string& msg);
 };

@@ -89,16 +89,15 @@ void CoreEngine::run(const std::string& symbol, const std::string& start_date,
     scheduler_->load_bars(filtered_bars);
     order_mgr_->clear();
     fills_.clear();
+    current_bar_ = Bar{};
 
     while (scheduler_->has_next()) {
-        const Bar current_bar = scheduler_->next();
-        log("[" + current_bar.datetime + "] Bar: " + current_bar.datetime);
+        current_bar_ = scheduler_->next();
+        log("[" + current_bar_.datetime + "] Bar: " + current_bar_.datetime);
 
         if (strategy_ && !strategy_.is_none()) {
-            strategy_.attr("on_bar")(current_bar);
+            strategy_.attr("on_bar")(current_bar_);
         }
-
-        // No matching engine yet; pending orders are not processed here.
     }
 
     log("=== Run Complete ===");
@@ -125,6 +124,24 @@ bool CoreEngine::submit_order(const Order& order) {
         return false;
     }
 
+    if (matcher_ && !current_bar_.datetime.empty()) {
+        Order match_order = order;
+        if (match_order.status != OrderStatus::PENDING) {
+            match_order.status = OrderStatus::PENDING;
+        }
+
+        const Fill fill = matcher_->process(match_order, current_bar_);
+        if (fill.quantity > 0.0) {
+            fills_.push_back(fill);
+            portfolio_->update(fill);
+            log("Filled: " + fill.fill_id + " @" + std::to_string(fill.price));
+            return true;
+        }
+
+        log("[NO FILL] Order not filled: symbol=" + order.symbol);
+        return false;
+    }
+
     if (!order_mgr_->route(order)) {
         log("[REJECT] Failed to route order (duplicate order_id): symbol=" +
             order.symbol);
@@ -135,6 +152,10 @@ bool CoreEngine::submit_order(const Order& order) {
         (order.side == OrderSide::BUY ? "BUY" : "SELL") +
         ", quantity=" + std::to_string(order.quantity));
     return true;
+}
+
+void CoreEngine::set_matching_engine(std::unique_ptr<simulation::MatchingEngine> matcher) {
+    matcher_ = std::move(matcher);
 }
 
 void CoreEngine::set_strategy(pybind11::object strategy) {

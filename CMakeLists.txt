@@ -55,6 +55,11 @@ set(CORE_ENGINE_SOURCES
     src/engine/EventScheduler.cpp
     src/engine/OrderManager.cpp
     src/engine/PortfolioManager.cpp
+    src/engine/FixedLatencyModel.cpp
+    src/engine/GaussianLatencyModel.cpp
+    src/engine/FixedSlippageModel.cpp
+    src/engine/VolumeProportionalSlippageModel.cpp
+    src/engine/RealisticMatchingEngine.cpp
 )
 
 set(PROJECT_INCLUDE_DIRS
