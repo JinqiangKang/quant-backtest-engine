@@ -32,7 +32,7 @@ std::string current_timestamp() {
 
 }  // namespace
 
-CoreEngine::CoreEngine(std::unique_ptr<MatchingEngine> matcher)
+CoreEngine::CoreEngine(std::unique_ptr<simulation::MatchingEngine> matcher)
     : scheduler_(std::make_unique<EventScheduler>())
     , order_mgr_(std::make_unique<OrderManager>())
     , portfolio_(std::make_unique<PortfolioManager>())

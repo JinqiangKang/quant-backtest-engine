@@ -1,7 +1,18 @@
 #pragma once
 
-namespace backtest {
+#include <string>
 
-class MatchingEngine {};
+#include "Bar.h"
+#include "Fill.h"
+#include "Order.h"
 
-}  // namespace backtest
+namespace backtest::simulation {
+
+class MatchingEngine {
+public:
+    virtual ~MatchingEngine() = default;
+
+    virtual Fill process(const Order& order, const Bar& current_bar) = 0;
+};
+
+}  // namespace backtest::simulation

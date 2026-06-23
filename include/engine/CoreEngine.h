@@ -21,7 +21,7 @@ class PortfolioManager;
 
 class CoreEngine {
 public:
-    explicit CoreEngine(std::unique_ptr<MatchingEngine> matcher = nullptr);
+    explicit CoreEngine(std::unique_ptr<simulation::MatchingEngine> matcher = nullptr);
     ~CoreEngine();
 
     CoreEngine(const CoreEngine&) = delete;
@@ -43,7 +43,7 @@ private:
     std::unique_ptr<EventScheduler> scheduler_;
     std::unique_ptr<OrderManager> order_mgr_;
     std::unique_ptr<PortfolioManager> portfolio_;
-    std::unique_ptr<MatchingEngine> matcher_;
+    std::unique_ptr<simulation::MatchingEngine> matcher_;
     std::vector<Fill> fills_;
     std::unordered_map<std::string, std::string> run_params_;
     std::ofstream log_file_;
