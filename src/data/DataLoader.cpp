@@ -50,7 +50,46 @@ std::vector<Bar> DataLoader::load_csv(const std::string& file_path) {
     return bars;
 }
 
-bool DataLoader::validate_ohlcv(const std::vector<Bar>& /*bars*/) { return false; }
+bool DataLoader::validate_ohlcv(const std::vector<Bar>& bars) {
+    if (bars.empty()) {
+        return true;
+    }
+
+    for (std::size_t i = 0; i < bars.size(); ++i) {
+        const Bar& bar = bars[i];
+
+        if (bar.high < bar.low) {
+            std::cerr << "Warning: high < low for bar " << bar.datetime << '\n';
+            return false;
+        }
+
+        if (bar.high < bar.open || bar.high < bar.close) {
+            std::cerr << "Warning: high must be >= open and close for bar "
+                      << bar.datetime << '\n';
+            return false;
+        }
+
+        if (bar.low > bar.open || bar.low > bar.close) {
+            std::cerr << "Warning: low must be <= open and close for bar "
+                      << bar.datetime << '\n';
+            return false;
+        }
+
+        if (bar.volume < 0.0) {
+            std::cerr << "Warning: negative volume for bar " << bar.datetime << '\n';
+            return false;
+        }
+
+        if (i > 0 && bar.datetime <= bars[i - 1].datetime) {
+            std::cerr << "Warning: dates must be strictly increasing at bar "
+                      << bar.datetime << " (previous: " << bars[i - 1].datetime
+                      << ")\n";
+            return false;
+        }
+    }
+
+    return true;
+}
 
 std::vector<Bar> DataLoader::resample(const std::vector<Bar>& /*bars*/,
                                       const std::string& /*freq*/) {
