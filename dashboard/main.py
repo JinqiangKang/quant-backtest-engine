@@ -12,10 +12,14 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DASHBOARD_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT / "python"))
+sys.path.insert(0, str(DASHBOARD_DIR))
 os.chdir(PROJECT_ROOT)
 
 import _backtest_core as bc  # noqa: E402
+
+from strategies import PeriodicTradeStrategy  # noqa: E402
 
 app = FastAPI(title="回测仪表盘")
 
@@ -139,37 +143,16 @@ def create_matcher(request: RunRequest):
     )
 
 
-class PeriodicBuyStrategy:
-    """每 5 根 Bar 买入 100 股，用于产生测试成交。"""
+def make_progress_callback(job_id: str, total_bars: int):
+    total = max(total_bars, 1)
 
-    def __init__(self, engine, job_id: str, total_bars: int):
-        self.engine = engine
-        self.job_id = job_id
-        self.total_bars = max(total_bars, 1)
-        self.bar_count = 0
-        self.symbol = ""
-
-    def set_symbol(self, symbol: str):
-        self.symbol = symbol
-
-    def on_bar(self, bar):
-        self.bar_count += 1
-        progress = min(99, int(self.bar_count / self.total_bars * 100))
+    def update(bar_count: int) -> None:
+        progress = min(99, int(bar_count / total * 100))
         with jobs_lock:
-            if self.job_id in jobs:
-                jobs[self.job_id]["progress"] = progress
+            if job_id in jobs:
+                jobs[job_id]["progress"] = progress
 
-        if self.bar_count % 5 == 0:
-            order = bc.Order()
-            order.symbol = self.symbol
-            order.side = bc.OrderSide.BUY
-            order.quantity = 100
-            order.price = bar.close
-            order.status = bc.OrderStatus.PENDING
-            self.engine.submit_order(order)
-
-    def on_fill(self, fill):
-        pass
+    return update
 
 
 def build_engine_and_run(job_id: str, request: RunRequest) -> None:
@@ -183,8 +166,11 @@ def build_engine_and_run(job_id: str, request: RunRequest) -> None:
         else:
             engine = bc.CoreEngine(matcher)
 
-        strategy = PeriodicBuyStrategy(engine, job_id, total_bars)
-        strategy.set_symbol(request.symbol)
+        strategy = PeriodicTradeStrategy(
+            engine,
+            symbol=request.symbol,
+            on_progress=make_progress_callback(job_id, total_bars),
+        )
         engine.set_strategy(strategy)
 
         if request.mode == "dual":
