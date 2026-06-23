@@ -10,7 +10,8 @@ class SlippageModel {
 public:
     virtual ~SlippageModel() = default;
 
-    virtual double compute(const Order& order, double base_price) = 0;
+    virtual double compute(const Order& order, double base_price,
+                           double bar_volume = 0.0) = 0;
 };
 
 }  // namespace backtest::simulation
