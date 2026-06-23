@@ -1,10 +1,52 @@
 #include "DataLoader.h"
 
+#include <ctime>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+
+namespace {
+
+std::tm parse_date(const std::string& date_str) {
+    std::tm tm{};
+    std::istringstream ss(date_str);
+    ss >> std::get_time(&tm, "%Y-%m-%d");
+    return tm;
+}
+
+std::string get_week_start(const std::string& date_str) {
+    std::tm tm = parse_date(date_str);
+    tm.tm_hour = 0;
+    tm.tm_min = 0;
+    tm.tm_sec = 0;
+    std::mktime(&tm);
+
+    const int days_since_monday = (tm.tm_wday + 6) % 7;
+    tm.tm_mday -= days_since_monday;
+    std::mktime(&tm);
+
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%Y-%m-%d");
+    return oss.str();
+}
+
+std::string get_month_start(const std::string& date_str) {
+    std::tm tm = parse_date(date_str);
+    tm.tm_mday = 1;
+    tm.tm_hour = 0;
+    tm.tm_min = 0;
+    tm.tm_sec = 0;
+    std::mktime(&tm);
+
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%Y-%m-%d");
+    return oss.str();
+}
+
+}  // namespace
 
 namespace backtest {
 
