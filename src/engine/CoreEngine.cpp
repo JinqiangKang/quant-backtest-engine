@@ -305,6 +305,22 @@ const std::vector<analytics::EquityPoint>& CoreEngine::get_equity_curve() const 
     return equity_curve_;
 }
 
+const std::vector<Fill>& CoreEngine::get_ideal_fills() const noexcept {
+    return ideal_fills_;
+}
+
+const std::vector<Fill>& CoreEngine::get_realistic_fills() const noexcept {
+    return realistic_fills_;
+}
+
+const std::vector<analytics::EquityPoint>& CoreEngine::get_ideal_equity_curve() const noexcept {
+    return ideal_equity_curve_;
+}
+
+const std::vector<analytics::EquityPoint>& CoreEngine::get_realistic_equity_curve() const noexcept {
+    return realistic_equity_curve_;
+}
+
 void CoreEngine::log(const std::string& msg) {
     const std::string line = "[" + current_timestamp() + "] " + msg;
 

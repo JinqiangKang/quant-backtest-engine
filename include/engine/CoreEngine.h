@@ -50,6 +50,10 @@ public:
     [[nodiscard]] Position get_position(const std::string& symbol) const;
     [[nodiscard]] const std::vector<Fill>& get_fills() const noexcept;
     [[nodiscard]] const std::vector<analytics::EquityPoint>& get_equity_curve() const noexcept;
+    [[nodiscard]] const std::vector<Fill>& get_ideal_fills() const noexcept;
+    [[nodiscard]] const std::vector<Fill>& get_realistic_fills() const noexcept;
+    [[nodiscard]] const std::vector<analytics::EquityPoint>& get_ideal_equity_curve() const noexcept;
+    [[nodiscard]] const std::vector<analytics::EquityPoint>& get_realistic_equity_curve() const noexcept;
 
 private:
     std::unique_ptr<EventScheduler> scheduler_;

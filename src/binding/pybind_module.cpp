@@ -122,7 +122,11 @@ PYBIND11_MODULE(_backtest_core, m) {
         .def("get_cash", &backtest::CoreEngine::get_cash)
         .def("get_position", &backtest::CoreEngine::get_position)
         .def("get_fills", &backtest::CoreEngine::get_fills)
-        .def("get_equity_curve", &backtest::CoreEngine::get_equity_curve);
+        .def("get_equity_curve", &backtest::CoreEngine::get_equity_curve)
+        .def("get_ideal_fills", &backtest::CoreEngine::get_ideal_fills)
+        .def("get_realistic_fills", &backtest::CoreEngine::get_realistic_fills)
+        .def("get_ideal_equity_curve", &backtest::CoreEngine::get_ideal_equity_curve)
+        .def("get_realistic_equity_curve", &backtest::CoreEngine::get_realistic_equity_curve);
 
     py::class_<analytics::EquityPoint>(m, "EquityPoint")
         .def_readonly("datetime", &analytics::EquityPoint::datetime)
