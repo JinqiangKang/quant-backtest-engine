@@ -1,5 +1,7 @@
 #pragma once
 
+#include <pybind11/pybind11.h>
+
 #include <fstream>
 #include <memory>
 #include <string>
@@ -31,6 +33,7 @@ public:
              const std::string& end_date, const std::string& csv_path);
 
     bool submit_order(const Order& order);
+    void set_strategy(pybind11::object strategy);
 
     [[nodiscard]] double get_cash() const;
     [[nodiscard]] Position get_position(const std::string& symbol) const;
@@ -45,6 +48,7 @@ private:
     std::unordered_map<std::string, std::string> run_params_;
     std::ofstream log_file_;
     bool log_to_file_{true};
+    pybind11::object strategy_{};
 
     void log(const std::string& msg);
 };

@@ -94,7 +94,9 @@ void CoreEngine::run(const std::string& symbol, const std::string& start_date,
         const Bar current_bar = scheduler_->next();
         log("[" + current_bar.datetime + "] Bar: " + current_bar.datetime);
 
-        // TODO: call strategy on_bar
+        if (strategy_ && !strategy_.is_none()) {
+            strategy_.attr("on_bar")(current_bar);
+        }
 
         // No matching engine yet; pending orders are not processed here.
     }
@@ -133,6 +135,10 @@ bool CoreEngine::submit_order(const Order& order) {
         (order.side == OrderSide::BUY ? "BUY" : "SELL") +
         ", quantity=" + std::to_string(order.quantity));
     return true;
+}
+
+void CoreEngine::set_strategy(pybind11::object strategy) {
+    strategy_ = std::move(strategy);
 }
 
 double CoreEngine::get_cash() const { return portfolio_->get_cash(); }

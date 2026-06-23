@@ -121,5 +121,6 @@ if(BUILD_TESTS)
         tests/test_core_engine.cpp
     )
     target_include_directories(test_core_engine PRIVATE ${PROJECT_INCLUDE_DIRS})
+    target_link_libraries(test_core_engine PRIVATE pybind11::embed)
     backtest_set_warnings(test_core_engine)
 endif()
