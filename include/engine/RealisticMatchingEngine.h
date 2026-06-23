@@ -12,6 +12,8 @@ class RealisticMatchingEngine : public MatchingEngine {
 public:
     RealisticMatchingEngine(std::unique_ptr<LatencyModel> latency,
                             std::unique_ptr<SlippageModel> slippage);
+    RealisticMatchingEngine(std::shared_ptr<LatencyModel> latency,
+                            std::shared_ptr<SlippageModel> slippage);
 
     Fill process(const Order& order, const Bar& current_bar) override;
 
@@ -19,8 +21,8 @@ public:
     void set_slippage_model(std::unique_ptr<SlippageModel> model);
 
 private:
-    std::unique_ptr<LatencyModel> latency_model_;
-    std::unique_ptr<SlippageModel> slippage_model_;
+    std::shared_ptr<LatencyModel> latency_model_;
+    std::shared_ptr<SlippageModel> slippage_model_;
 };
 
 }  // namespace backtest::simulation

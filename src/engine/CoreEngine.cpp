@@ -38,6 +38,12 @@ CoreEngine::CoreEngine(std::unique_ptr<simulation::MatchingEngine> matcher)
     , portfolio_(std::make_unique<PortfolioManager>())
     , matcher_(std::move(matcher)) {}
 
+CoreEngine::CoreEngine(std::shared_ptr<simulation::MatchingEngine> matcher)
+    : scheduler_(std::make_unique<EventScheduler>())
+    , order_mgr_(std::make_unique<OrderManager>())
+    , portfolio_(std::make_unique<PortfolioManager>())
+    , matcher_(std::move(matcher)) {}
+
 CoreEngine::~CoreEngine() {
     if (log_file_.is_open()) {
         log_file_.close();
@@ -155,6 +161,10 @@ bool CoreEngine::submit_order(const Order& order) {
 }
 
 void CoreEngine::set_matching_engine(std::unique_ptr<simulation::MatchingEngine> matcher) {
+    matcher_ = std::move(matcher);
+}
+
+void CoreEngine::set_matching_engine(std::shared_ptr<simulation::MatchingEngine> matcher) {
     matcher_ = std::move(matcher);
 }
 

@@ -23,6 +23,7 @@ class PortfolioManager;
 class CoreEngine {
 public:
     explicit CoreEngine(std::unique_ptr<simulation::MatchingEngine> matcher = nullptr);
+    explicit CoreEngine(std::shared_ptr<simulation::MatchingEngine> matcher);
     ~CoreEngine();
 
     CoreEngine(const CoreEngine&) = delete;
@@ -36,6 +37,7 @@ public:
     bool submit_order(const Order& order);
     void set_strategy(pybind11::object strategy);
     void set_matching_engine(std::unique_ptr<simulation::MatchingEngine> matcher);
+    void set_matching_engine(std::shared_ptr<simulation::MatchingEngine> matcher);
 
     [[nodiscard]] double get_cash() const;
     [[nodiscard]] Position get_position(const std::string& symbol) const;
@@ -45,7 +47,7 @@ private:
     std::unique_ptr<EventScheduler> scheduler_;
     std::unique_ptr<OrderManager> order_mgr_;
     std::unique_ptr<PortfolioManager> portfolio_;
-    std::unique_ptr<simulation::MatchingEngine> matcher_;
+    std::shared_ptr<simulation::MatchingEngine> matcher_;
     std::vector<Fill> fills_;
     std::unordered_map<std::string, std::string> run_params_;
     std::ofstream log_file_;

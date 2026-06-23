@@ -15,6 +15,10 @@ RealisticMatchingEngine::RealisticMatchingEngine(std::unique_ptr<LatencyModel> l
                                                  std::unique_ptr<SlippageModel> slippage)
     : latency_model_(std::move(latency)), slippage_model_(std::move(slippage)) {}
 
+RealisticMatchingEngine::RealisticMatchingEngine(std::shared_ptr<LatencyModel> latency,
+                                                 std::shared_ptr<SlippageModel> slippage)
+    : latency_model_(std::move(latency)), slippage_model_(std::move(slippage)) {}
+
 Fill RealisticMatchingEngine::process(const Order& order, const Bar& current_bar) {
     if (order.status != OrderStatus::PENDING) {
         return make_invalid_fill();
