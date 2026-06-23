@@ -1,5 +1,6 @@
 #include "DataLoader.h"
 
+#include <algorithm>
 #include <ctime>
 #include <fstream>
 #include <iomanip>
@@ -7,6 +8,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace {
 
@@ -133,9 +136,67 @@ bool DataLoader::validate_ohlcv(const std::vector<Bar>& bars) {
     return true;
 }
 
-std::vector<Bar> DataLoader::resample(const std::vector<Bar>& /*bars*/,
-                                      const std::string& /*freq*/) {
-    return {};
+std::vector<Bar> DataLoader::resample(const std::vector<Bar>& bars,
+                                      const std::string& freq) {
+    if (freq == "D") {
+        return bars;
+    }
+
+    using GroupKeyFn = std::string (*)(const std::string&);
+    GroupKeyFn get_group_key = nullptr;
+    if (freq == "W") {
+        get_group_key = get_week_start;
+    } else if (freq == "M") {
+        get_group_key = get_month_start;
+    } else {
+        throw std::invalid_argument("Unsupported frequency: " + freq);
+    }
+
+    struct Aggregate {
+        double open{};
+        double high{};
+        double low{};
+        double close{};
+        double volume{};
+        bool has_data{false};
+    };
+
+    std::unordered_map<std::string, Aggregate> groups;
+
+    for (const Bar& bar : bars) {
+        const std::string key = get_group_key(bar.datetime);
+        Aggregate& agg = groups[key];
+
+        if (!agg.has_data) {
+            agg.open = bar.open;
+            agg.high = bar.high;
+            agg.low = bar.low;
+            agg.close = bar.close;
+            agg.volume = bar.volume;
+            agg.has_data = true;
+        } else {
+            agg.high = std::max(agg.high, bar.high);
+            agg.low = std::min(agg.low, bar.low);
+            agg.close = bar.close;
+            agg.volume += bar.volume;
+        }
+    }
+
+    std::vector<std::string> keys;
+    keys.reserve(groups.size());
+    for (const auto& entry : groups) {
+        keys.push_back(entry.first);
+    }
+    std::sort(keys.begin(), keys.end());
+
+    std::vector<Bar> result;
+    result.reserve(keys.size());
+    for (const std::string& key : keys) {
+        const Aggregate& agg = groups.at(key);
+        result.emplace_back(key, agg.open, agg.high, agg.low, agg.close, agg.volume);
+    }
+
+    return result;
 }
 
 }  // namespace backtest
