@@ -13,13 +13,16 @@ from pydantic import BaseModel, Field
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DASHBOARD_DIR = Path(__file__).resolve().parent
+EXAMPLES_DIR = PROJECT_ROOT / "examples"
 sys.path.insert(0, str(PROJECT_ROOT / "python"))
 sys.path.insert(0, str(DASHBOARD_DIR))
+sys.path.insert(0, str(PROJECT_ROOT))
 os.chdir(PROJECT_ROOT)
 
 import _backtest_core as bc  # noqa: E402
 
-from strategies import PeriodicTradeStrategy  # noqa: E402
+from latency_models import CustomExponentialLatencyModel  # noqa: E402
+from strategy_factory import create_strategy  # noqa: E402
 
 app = FastAPI(title="回测仪表盘")
 
@@ -37,8 +40,11 @@ class RunRequest(BaseModel):
     end_date: str
     csv_path: str
     mode: Literal["ideal", "realistic", "dual"] = "realistic"
+    latency_model: Literal["fixed", "gaussian", "exponential"] = "fixed"
     latency_ms: float = 0.0
     slippage_bps: float = 0.0
+    strategy: Literal["empty", "ma_cross", "mean_reversion", "periodic"] = "empty"
+    strategy_params: dict[str, Any] = Field(default_factory=dict)
 
 
 class JobStatusResponse(BaseModel):
@@ -134,13 +140,22 @@ def gap_to_dict(gap) -> dict[str, float]:
     }
 
 
+def create_latency_model(request: RunRequest):
+    scale = request.latency_ms if request.latency_ms > 0 else 5.0
+    if request.latency_model == "gaussian":
+        std = max(scale * 0.5, 0.1)
+        return bc.GaussianLatencyModel(scale, std)
+    if request.latency_model == "exponential":
+        return CustomExponentialLatencyModel(scale=scale)
+    return bc.FixedLatencyModel(request.latency_ms)
+
+
 def create_matcher(request: RunRequest):
     if request.mode == "ideal":
         return bc.IdealMatchingEngine()
-    return bc.RealisticMatchingEngine(
-        bc.FixedLatencyModel(request.latency_ms),
-        bc.FixedSlippageModel(request.slippage_bps),
-    )
+    latency = create_latency_model(request)
+    slippage = bc.FixedSlippageModel(request.slippage_bps)
+    return bc.RealisticMatchingEngine(latency, slippage)
 
 
 def make_progress_callback(job_id: str, total_bars: int):
@@ -160,17 +175,26 @@ def build_engine_and_run(job_id: str, request: RunRequest) -> None:
     total_bars = count_bars(csv_path, request.start_date, request.end_date)
 
     try:
-        matcher = create_matcher(request)
+        model_holders: list[Any] = []
         if request.mode == "ideal":
-            engine = bc.CoreEngine(matcher)
+            matcher = bc.IdealMatchingEngine()
         else:
-            engine = bc.CoreEngine(matcher)
+            latency = create_latency_model(request)
+            slippage = bc.FixedSlippageModel(request.slippage_bps)
+            matcher = bc.RealisticMatchingEngine(latency, slippage)
+            model_holders.extend([latency, slippage, matcher])
 
-        strategy = PeriodicTradeStrategy(
+        engine = bc.CoreEngine(matcher)
+
+        strategy = create_strategy(
+            request.strategy,
             engine,
             symbol=request.symbol,
+            params=request.strategy_params,
             on_progress=make_progress_callback(job_id, total_bars),
         )
+        if model_holders:
+            strategy._model_holders = model_holders  # type: ignore[attr-defined]
         engine.set_strategy(strategy)
 
         if request.mode == "dual":

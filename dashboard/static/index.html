@@ -401,8 +401,25 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="latency">延迟 (ms)</label>
-                        <input type="number" id="latency" name="latency_ms" value="10" min="0" step="1">
+                        <label for="strategy">交易策略</label>
+                        <select id="strategy" name="strategy">
+                            <option value="empty">empty（无交易）</option>
+                            <option value="ma_cross" selected>ma_cross（双均线）</option>
+                            <option value="mean_reversion">mean_reversion（均值回归）</option>
+                            <option value="periodic">periodic（周期买卖）</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="latency-model">延迟模型</label>
+                        <select id="latency-model" name="latency_model">
+                            <option value="fixed" selected>fixed（固定延迟）</option>
+                            <option value="gaussian">gaussian（高斯延迟）</option>
+                            <option value="exponential">exponential（指数延迟，Python 自定义）</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="latency">延迟参数 (ms / scale)</label>
+                        <input type="number" id="latency" name="latency_ms" value="10" min="0" step="0.1">
                     </div>
                     <div class="form-group">
                         <label for="slippage">滑点 (bps)</label>
@@ -567,6 +584,9 @@
                 end_date:     fd.get("end_date"),
                 csv_path:     fd.get("csv_path"),
                 mode:         fd.get("mode"),
+                strategy:     fd.get("strategy"),
+                strategy_params: {},
+                latency_model: fd.get("latency_model"),
                 latency_ms:   parseFloat(fd.get("latency_ms")) || 0,
                 slippage_bps: parseFloat(fd.get("slippage_bps")) || 0,
             };

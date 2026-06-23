@@ -12,6 +12,7 @@
 #include "PerformanceAnalytics.h"
 #include "RealisticMatchingEngine.h"
 #include "SlippageModel.h"
+#include "Strategy.h"
 #include "VolumeProportionalSlippageModel.h"
 
 #include <pybind11/pybind11.h>
@@ -21,6 +22,55 @@ namespace py = pybind11;
 
 namespace sim = backtest::simulation;
 namespace analytics = backtest::analytics;
+
+class PyStrategyTrampoline : public backtest::Strategy {
+public:
+    using backtest::Strategy::Strategy;
+
+    void init() override { PYBIND11_OVERRIDE(void, backtest::Strategy, init); }
+
+    void on_bar(const backtest::Bar& bar) override {
+        PYBIND11_OVERRIDE(void, backtest::Strategy, on_bar, bar);
+    }
+
+    void on_fill(const backtest::Fill& fill) override {
+        PYBIND11_OVERRIDE(void, backtest::Strategy, on_fill, fill);
+    }
+};
+
+class PyLatencyModel : public sim::LatencyModel {
+public:
+    using sim::LatencyModel::LatencyModel;
+
+    double compute(const backtest::Order& order) override {
+        py::gil_scoped_acquire gil;
+        PYBIND11_OVERRIDE_PURE(double, sim::LatencyModel, compute, order);
+    }
+};
+
+class PySlippageModel : public sim::SlippageModel {
+public:
+    using sim::SlippageModel::SlippageModel;
+
+    double compute(const backtest::Order& order, double base_price,
+                   double bar_volume) override {
+        py::gil_scoped_acquire gil;
+        PYBIND11_OVERRIDE_PURE(double, sim::SlippageModel, compute, order, base_price,
+                               bar_volume);
+    }
+};
+
+class PyMatchingEngine : public sim::MatchingEngine {
+public:
+    using sim::MatchingEngine::MatchingEngine;
+
+    backtest::Fill process(const backtest::Order& order,
+                           const backtest::Bar& current_bar) override {
+        py::gil_scoped_acquire gil;
+        PYBIND11_OVERRIDE_PURE(backtest::Fill, sim::MatchingEngine, process, order,
+                               current_bar);
+    }
+};
 
 PYBIND11_MODULE(_backtest_core, m) {
     m.doc() = "Quantitative backtesting core engine (C++ bindings)";
@@ -71,7 +121,10 @@ PYBIND11_MODULE(_backtest_core, m) {
         .def("market_value", &backtest::Position::market_value)
         .def("unrealized_pnl", &backtest::Position::unrealized_pnl);
 
-    py::class_<sim::LatencyModel, std::shared_ptr<sim::LatencyModel>>(m, "LatencyModel");
+    py::class_<sim::LatencyModel, PyLatencyModel, std::shared_ptr<sim::LatencyModel>>(
+        m, "LatencyModel")
+        .def(py::init<>())
+        .def("compute", &sim::LatencyModel::compute);
 
     py::class_<sim::FixedLatencyModel, sim::LatencyModel,
                std::shared_ptr<sim::FixedLatencyModel>>(m, "FixedLatencyModel")
@@ -81,7 +134,10 @@ PYBIND11_MODULE(_backtest_core, m) {
                std::shared_ptr<sim::GaussianLatencyModel>>(m, "GaussianLatencyModel")
         .def(py::init<double, double>());
 
-    py::class_<sim::SlippageModel, std::shared_ptr<sim::SlippageModel>>(m, "SlippageModel");
+    py::class_<sim::SlippageModel, PySlippageModel, std::shared_ptr<sim::SlippageModel>>(
+        m, "SlippageModel")
+        .def(py::init<>())
+        .def("compute", &sim::SlippageModel::compute);
 
     py::class_<sim::FixedSlippageModel, sim::SlippageModel,
                std::shared_ptr<sim::FixedSlippageModel>>(m, "FixedSlippageModel")
@@ -92,8 +148,10 @@ PYBIND11_MODULE(_backtest_core, m) {
         m, "VolumeProportionalSlippageModel")
         .def(py::init<double>());
 
-    py::class_<sim::MatchingEngine, std::shared_ptr<sim::MatchingEngine>>(m,
-                                                                         "MatchingEngine");
+    py::class_<sim::MatchingEngine, PyMatchingEngine, std::shared_ptr<sim::MatchingEngine>>(
+        m, "MatchingEngine")
+        .def(py::init<>())
+        .def("process", &sim::MatchingEngine::process);
 
     py::class_<sim::RealisticMatchingEngine, sim::MatchingEngine,
                std::shared_ptr<sim::RealisticMatchingEngine>>(m,
@@ -105,6 +163,12 @@ PYBIND11_MODULE(_backtest_core, m) {
                std::shared_ptr<sim::IdealMatchingEngine>>(m, "IdealMatchingEngine")
         .def(py::init<>())
         .def("process", &sim::IdealMatchingEngine::process);
+
+    py::class_<backtest::Strategy, PyStrategyTrampoline>(m, "Strategy")
+        .def(py::init<>())
+        .def("init", &backtest::Strategy::init)
+        .def("on_bar", &backtest::Strategy::on_bar)
+        .def("on_fill", &backtest::Strategy::on_fill);
 
     py::class_<backtest::CoreEngine>(m, "CoreEngine")
         .def(py::init<>())
