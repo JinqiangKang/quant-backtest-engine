@@ -9,6 +9,7 @@
 #include "Order.h"
 #include "Position.h"
 #include "IdealMatchingEngine.h"
+#include "PerformanceAnalytics.h"
 #include "RealisticMatchingEngine.h"
 #include "SlippageModel.h"
 #include "VolumeProportionalSlippageModel.h"
@@ -19,6 +20,7 @@
 namespace py = pybind11;
 
 namespace sim = backtest::simulation;
+namespace analytics = backtest::analytics;
 
 PYBIND11_MODULE(_backtest_core, m) {
     m.doc() = "Quantitative backtesting core engine (C++ bindings)";
@@ -117,4 +119,25 @@ PYBIND11_MODULE(_backtest_core, m) {
         .def("get_cash", &backtest::CoreEngine::get_cash)
         .def("get_position", &backtest::CoreEngine::get_position)
         .def("get_fills", &backtest::CoreEngine::get_fills);
+
+    py::class_<analytics::EquityPoint>(m, "EquityPoint")
+        .def_readonly("datetime", &analytics::EquityPoint::datetime)
+        .def_readonly("equity", &analytics::EquityPoint::equity);
+
+    py::class_<analytics::PerformanceMetrics>(m, "PerformanceMetrics")
+        .def_readonly("total_return", &analytics::PerformanceMetrics::total_return)
+        .def_readonly("sharpe_ratio", &analytics::PerformanceMetrics::sharpe_ratio)
+        .def_readonly("max_drawdown", &analytics::PerformanceMetrics::max_drawdown)
+        .def_readonly("win_rate", &analytics::PerformanceMetrics::win_rate);
+
+    py::class_<analytics::GapMetrics>(m, "GapMetrics")
+        .def_readonly("total_return_diff", &analytics::GapMetrics::total_return_diff)
+        .def_readonly("sharpe_reduction", &analytics::GapMetrics::sharpe_reduction)
+        .def_readonly("relative_decay", &analytics::GapMetrics::relative_decay);
+
+    py::class_<analytics::PerformanceAnalytics>(m, "PerformanceAnalytics")
+        .def_static("compute_metrics", &analytics::PerformanceAnalytics::compute_metrics)
+        .def_static("compute_gap", &analytics::PerformanceAnalytics::compute_gap)
+        .def_static("build_equity_curve",
+                     &analytics::PerformanceAnalytics::build_equity_curve);
 }

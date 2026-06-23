@@ -61,12 +61,14 @@ set(CORE_ENGINE_SOURCES
     src/engine/VolumeProportionalSlippageModel.cpp
     src/engine/RealisticMatchingEngine.cpp
     src/engine/IdealMatchingEngine.cpp
+    src/analytics/PerformanceAnalytics.cpp
 )
 
 set(PROJECT_INCLUDE_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/data
     ${CMAKE_CURRENT_SOURCE_DIR}/include/engine
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/analytics
 )
 
 function(backtest_set_warnings target_name)
